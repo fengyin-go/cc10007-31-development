@@ -57,18 +57,44 @@ npm run build
 | 数据同步 | `datasync` | 同步链路 | 链路编号、源端连接、目标端连接 |
 | 快照管理 | `snapshot` | 快照策略 | 策略编号、目标表名、快照周期 |
 | 存储治理 | `govern` | 治理策略 | 策略编号、目标表名、治理类型 |
-| 任务监控 | `monitor` | 监控配置 | 配置编号、关联任务、监控指标 |
+| 任务监控 | `monitor` | 监控配置 / 告警事件 / 影响证据 / 故障回执 | 配置编号、关联对象、监控指标、阈值与裁定优先级 |
 | 变更审计 | `audit` | 审计记录 | 记录编号、操作表名、变更类型 |
 | 编目检索 | `catalog` | 编目条目 | 条目编号、数据集名称、所属分层 |
 
+## 任务监控领域模块
+
+`frontend/src/views/monitor/` 不使用通用 CRUD 表格，而是自带一套可验证的领域实现，数据持久化在
+`localStorage` 的 `data-layer-studio:monitor-domain` 键下：
+
+- `domain/types.ts`：监控配置、采样点、补数区间、告警事件、影响证据、故障回执与时间轴模型。
+- `domain/engine.ts`：纯函数判定引擎，口径包括
+  - 输入身份 `targetRef|metric|eventTime`：补数重叠区间的重复采样只认定首次到达，其余标重复、不参评；
+  - 连续缺测（预期槽位无被认定输入，达阈值告警）、迟到事件（到达晚于预期）、真实越界（值超出阈值闭区间）三者分开判定；
+  - 告警一经发出即锁定，迟到数据只能追加迟到事件，不能抹去或回改已发告警；
+  - 连续 `recoverLimit` 次正常采样才恢复，恢复后再次异常生成新的事件编号；
+  - 同任务多配置阈值冲突时按 `priority` 数字小者优先裁定，非权威配置的告警标注「已覆盖」并保留留痕。
+- `domain/store.ts`：本地仓储。确认告警只追加影响证据（含受影响输入身份与失败续做建议），
+  同步链路 / 补数任务失败续做可按关联对象读取；回看核对以监控配置为主对象逐项核对。
+- `components/`：配置与裁定面板、统一时间轴（采样/告警/恢复/补数区间同轴）、告警总览、
+  影响证据、故障回执（点不动 / 丢失 / 重复显示 / 对不上逐项写明处理结果）、回看核对与确认弹层。
+
+监控模块的验证（无需浏览器、不依赖测试框架）：
+
+```bash
+cd frontend
+npm run test:monitor
+# 依次执行：8 个 SFC 编译冒烟 + 10 项引擎判定验证 + 9 项仓储集成验证
+```
+
 ## 约定
 
-- 每个模块的页面在 `frontend/src/views/<模块>/index.vue`，页面只负责渲染，读写统一走
-  `frontend/src/api/local-service.ts`。
+- 除任务监控外，每个模块的页面在 `frontend/src/views/<模块>/index.vue`，页面只负责渲染，读写统一走
+  `frontend/src/api/local-service.ts`；任务监控的读写走其专属的 `views/monitor/domain/store.ts`。
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
-- 想回到初始数据：清掉浏览器里 `data-layer-studio:entries` 这一项，或调用 `resetModule(模块)`。
+- 想回到初始数据：清掉浏览器里 `data-layer-studio:entries` 这一项，或调用 `resetModule(模块)`；
+  任务监控在页面上点「重置演示数据」，或清掉 `data-layer-studio:monitor-domain`。
 
 领域：数据工程
 子方向：数仓与数据湖

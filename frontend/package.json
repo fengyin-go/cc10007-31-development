@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "test:monitor": "node --experimental-strip-types tests/sfc-compile.test.ts && node --experimental-strip-types tests/monitor-engine.test.ts && node --experimental-strip-types tests/monitor-store.test.ts"
   },
   "dependencies": {
     "pinia": "^2.1.7",
